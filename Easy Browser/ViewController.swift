@@ -13,8 +13,8 @@ class ViewController: UIViewController, WKNavigationDelegate {
     
     var webView: WKWebView!
     var progressView: UIProgressView!
-    var websites = ["apple.com", "hackingwithswift.com"]
-
+    var selectedURL: String = " "
+    
     override func loadView() {
         webView = WKWebView()
         webView.navigationDelegate = self
@@ -24,38 +24,40 @@ class ViewController: UIViewController, WKNavigationDelegate {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        let url = URL(string: "https://\(websites[0])")!
+        let url = URL(string: "https://\(selectedURL)")!
         webView.load(URLRequest(url: url))
         webView.allowsBackForwardNavigationGestures = true
+        
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Open", style: .plain, target: self, action: #selector(openTapped))
         
+        addTopBar()
+        
+        webView.addObserver(self, forKeyPath: #keyPath(WKWebView.estimatedProgress), options: .new, context: nil)
+    }
+    
+    func addTopBar() {
         let spacer = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
         progressView = UIProgressView(progressViewStyle: .default)
         progressView.sizeToFit()
         let progressButton = UIBarButtonItem(customView: progressView)
         let refresh = UIBarButtonItem(barButtonSystemItem: .refresh, target: webView, action: #selector(webView.reload))
+        let back = UIBarButtonItem(title: "Back", style: .plain, target: self, action: #selector(backTapped))
+        let forward = UIBarButtonItem(title: "Forward", style: .plain, target: self, action: #selector(forwardTapped))
         
-        toolbarItems = [progressButton, spacer, refresh]
+        toolbarItems = [progressButton, spacer, back, forward, refresh]
         navigationController?.isToolbarHidden = false
-        
-        webView.addObserver(self, forKeyPath: #keyPath(WKWebView.estimatedProgress), options: .new, context: nil)
     }
     
-    @objc func openTapped() {
-        let ac = UIAlertController(title: "Open page...", message: nil, preferredStyle: .actionSheet)
-        
-        for website in websites {
-             ac.addAction(UIAlertAction(title: website, style: .default, handler: openPage))
+    @objc func backTapped() {
+        if webView.canGoBack {
+            webView.goBack()
         }
-        
-        ac.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        ac.popoverPresentationController?.barButtonItem = self.navigationItem.rightBarButtonItem
-        present(ac, animated: true)
     }
     
-    func openPage(action: UIAlertAction) {
-        let url = URL(string: "https://" + action.title!)!
-        webView.load(URLRequest(url: url))
+    @objc func forwardTapped() {
+        if webView.canGoForward {
+            webView.goForward()
+        }
     }
     
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -71,6 +73,10 @@ class ViewController: UIViewController, WKNavigationDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         
         let url = navigationAction.request.url
+        var websites = [""]
+        if let vc = storyboard?.instantiateViewController(withIdentifier: "Table") as? URLTableViewController {
+            websites = vc.websites
+        }
         
         if let host = url?.host {
             for website in websites {
@@ -79,10 +85,37 @@ class ViewController: UIViewController, WKNavigationDelegate {
                     return
                 }
             }
+            
+            showBlockedURLAlert()
         }
         
         decisionHandler(.cancel)
     }
-
+    
+    func showBlockedURLAlert() {
+        let ac = UIAlertController(title: "Blocked Host", message: "The URL you are trying to access is forbiden.", preferredStyle: .alert)
+        ac.addAction(UIAlertAction(title: "Understood", style: .default))
+        present(ac, animated: true)
+    }
+    
+    @objc func openTapped() {
+        let ac = UIAlertController(title: "Open page...", message: nil, preferredStyle: .actionSheet)
+        
+        if let vc = storyboard?.instantiateViewController(withIdentifier: "Table") as? URLTableViewController {
+            for website in vc.websites {
+                ac.addAction(UIAlertAction(title: website, style: .default, handler: openPage))
+            }
+        }
+        
+        ac.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        ac.popoverPresentationController?.barButtonItem = self.navigationItem.rightBarButtonItem
+        present(ac, animated: true)
+    }
+    
+    func openPage(action: UIAlertAction) {
+        let url = URL(string: "https://\(action.title!)")!
+        webView.load(URLRequest(url: url))
+    }
+    
 }
 
